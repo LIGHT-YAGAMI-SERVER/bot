@@ -1,11 +1,25 @@
 const mineflayer = require('mineflayer')
 const { pathfinder, Movements, goals } = require('mineflayer-pathfinder')
+const fs = require('fs')
 
 // 🔥 CONFIG
 const PASSWORD = "Ajay12345"
-const OWNER = "LIGHT_YAGAMI" // 👈 YOUR EXACT MC NAME
+const OWNER = "LIGHT_YAGAMI"
 const HOST = "lightyagamiii.falix.pro"
 const PORT = 25565
+
+// 📁 MEMORY FILE
+const MEMORY_FILE = "memory.json"
+
+let memory = {}
+if (fs.existsSync(MEMORY_FILE)) {
+  memory = JSON.parse(fs.readFileSync(MEMORY_FILE))
+}
+
+// 💾 SAVE MEMORY
+function saveMemory() {
+  fs.writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 2))
+}
 
 function createBot() {
 
@@ -18,171 +32,189 @@ function createBot() {
   bot.loadPlugin(pathfinder)
 
   let loggedIn = false
-  let following = false
+  let lastAI = 0
 
-  // 🧠 SAFE OWNER GETTER
   function getOwner() {
-    if (!bot.players) return null
     if (!bot.players[OWNER]) return null
     return bot.players[OWNER].entity
   }
 
   bot.once('spawn', () => {
-    console.log('✅ Bot joined!')
-
+    console.log('✅ GOD++ Bot Online')
     const mcData = require('minecraft-data')(bot.version)
     bot.pathfinder.setMovements(new Movements(bot, mcData))
   })
 
-  // 📩 MESSAGE HANDLER
+  // ===========================
+  // 🤯 GOD++ AI BRAIN
+  // ===========================
+  function godPlusAI(player, text) {
+    const lower = text.toLowerCase()
+
+    if (!memory[player]) {
+      memory[player] = {
+        mood: "neutral",
+        trust: 0,
+        roast: 0,
+        last: "",
+        vibe: "normal"
+      }
+    }
+
+    const mem = memory[player]
+
+    // 🧠 LEARNING SYSTEM
+    if (lower.includes("thank")) mem.trust += 2
+    if (lower.includes("good bot")) mem.trust += 3
+    if (lower.includes("noob") || lower.includes("stupid")) {
+      mem.trust -= 3
+      mem.roast++
+      mem.mood = "toxic"
+    }
+
+    // 🎭 MOOD EVOLUTION
+    if (mem.trust > 5) mem.mood = "friendly"
+    if (mem.trust < -5) mem.mood = "enemy"
+
+    // 👑 OWNER
+    if (player.includes(OWNER)) {
+      return ["yes goat 👑", "on my way", "say less", "anything else?"][Math.floor(Math.random()*4)]
+    }
+
+    let reply
+
+    // 🔥 ROAST LEVEL SYSTEM
+    if (mem.roast > 3) {
+      const roasts = [
+        "bro still yapping 💀",
+        "npc energy",
+        "ur brain lagging",
+        "delete game",
+        "embarrassing"
+      ]
+      reply = roasts[Math.floor(Math.random()*roasts.length)]
+    }
+
+    // 🤝 FRIENDLY MODE
+    else if (mem.mood === "friendly") {
+      reply = ["yo bro", "nice", "cool", "respect"][Math.floor(Math.random()*4)]
+    }
+
+    // ☠️ ENEMY MODE
+    else if (mem.mood === "enemy") {
+      reply = ["nah shut up", "annoying", "leave", "kid"][Math.floor(Math.random()*4)]
+    }
+
+    // 💬 NORMAL AI
+    else if (lower.includes("hello") || lower.includes("hi")) {
+      reply = ["yo", "sup", "y"][Math.floor(Math.random()*3)]
+    }
+    else if (lower.includes("how are you")) {
+      reply = ["alive", "chilling", "better than u"][Math.floor(Math.random()*3)]
+    }
+    else if (lower.includes("why")) {
+      reply = ["idk", "ask google", "no idea"][Math.floor(Math.random()*3)]
+    }
+
+    // 🎲 RANDOM HUMAN BEHAVIOR
+    else if (Math.random() < 0.25) {
+      reply = ["...", "hmm", "idc"][Math.floor(Math.random()*3)]
+    }
+
+    else {
+      const fallback = ["ok", "nah", "sus", "real", "maybe"]
+      reply = fallback[Math.floor(Math.random()*fallback.length)]
+    }
+
+    mem.last = lower
+    saveMemory()
+    return reply
+  }
+
+  // ===========================
+  // 💬 CHAT SYSTEM
+  // ===========================
   bot.on('message', (msg) => {
-    const text = msg.toString().toLowerCase()
-    console.log('📩 Server:', text)
+    const full = msg.toString()
+
+    if (!full.includes("»") && !full.includes(":")) return
+
+    let player, text
+
+    if (full.includes("»")) {
+      const parts = full.split("»")
+      player = parts[0].trim()
+      text = parts[1]
+    } else {
+      const parts = full.split(":")
+      player = parts[0].trim()
+      text = parts[1]
+    }
+
+    if (!text) return
+    text = text.trim()
+
+    console.log(`💬 ${player}: ${text}`)
+
+    if (player.toLowerCase().includes("goat")) return
+
+    // anti spam
+    if (Date.now() - lastAI < 2500) return
+    lastAI = Date.now()
+
+    // ⏳ HUMAN DELAY
+    const delay = Math.random() * 2000 + 500
+
+    setTimeout(() => {
+      const reply = godPlusAI(player, text)
+      bot.chat(reply)
+    }, delay)
+
+    const lower = text.toLowerCase()
 
     // 🔐 LOGIN
-    if (!loggedIn && text.includes("login")) {
+    if (!loggedIn && lower.includes("login")) {
       bot.chat(`/login ${PASSWORD}`)
       loggedIn = true
-      console.log("🔐 Logged in")
     }
 
-    // 📝 REGISTER (only once)
-    if (!loggedIn && text.includes("register")) {
+    if (!loggedIn && lower.includes("register")) {
       bot.chat(`/register ${PASSWORD} ${PASSWORD}`)
-      console.log("📝 Registered")
     }
 
-    // 👣 FOLLOW
-    if (text.includes("follow me")) {
+    // 👣 FOLLOW OWNER
+    if (lower.includes("follow me")) {
       const target = getOwner()
-
-      if (!target) {
-        bot.chat("❌ Can't see you GOAT!")
-        return
+      if (target) {
+        bot.pathfinder.setGoal(new goals.GoalFollow(target, 2), true)
       }
-
-      following = true
-      bot.chat("👣 Following GOAT!")
-
-      bot.pathfinder.setGoal(new goals.GoalFollow(target, 2), true)
     }
 
     // 🛑 STOP
-    if (text.includes("stop")) {
-      following = false
+    if (lower.includes("stop")) {
       bot.pathfinder.setGoal(null)
-      bot.chat("🛑 Stopped!")
     }
 
-    // 📡 AUTO ACCEPT TPA
-    if (text.includes("has requested to teleport")) {
+    // 📡 TPA
+    if (lower.includes("teleport")) {
       bot.chat("/tpaccept")
-      bot.chat("📡 Teleported!")
     }
   })
-
-  // ⚔️ AUTO ATTACK
-  setInterval(() => {
-    if (!bot.entity) return
-
-    const enemy = bot.nearestEntity(e =>
-      e.type === 'mob' &&
-      e.position.distanceTo(bot.entity.position) < 5
-    )
-
-    if (enemy) {
-      bot.attack(enemy)
-    }
-  }, 2000)
-
-  // 🛡️ PROTECT OWNER
-  setInterval(() => {
-    const owner = getOwner()
-    if (!owner) return
-
-    const enemy = bot.nearestEntity(e =>
-      e.type === 'mob' &&
-      e.position.distanceTo(owner.position) < 6
-    )
-
-    if (enemy) {
-      bot.attack(enemy)
-    }
-  }, 2000)
-
-  // 🍖 AUTO EAT
-  setInterval(() => {
-    if (!bot.entity) return
-
-    if (bot.food < 15) {
-      const food = bot.inventory.items().find(i =>
-        i.name.includes("bread") || i.name.includes("beef")
-      )
-
-      if (food) {
-        bot.equip(food, 'hand')
-        bot.consume()
-      }
-    }
-  }, 5000)
-
-  // 📡 AUTO TPA TO OWNER
-  setInterval(() => {
-    if (!loggedIn) return
-
-    const owner = getOwner()
-
-    if (!owner) {
-      bot.chat(`/tpa ${OWNER}`)
-      console.log("📡 Sending TPA request...")
-    }
-  }, 20000)
-bot.on('message', (msg) => {
-  const text = msg.toString().toLowerCase()
-
-  // Catch both TPA and TPAHERE requests
-  if (
-    text.includes("has requested to teleport to you") ||
-    text.includes("wants to teleport to you") ||
-    text.includes("tpa request") ||
-    text.includes("has requested to teleport here")
-  ) {
-    console.log("📡 Accepting TPA...")
-    bot.chat("/tpaccept")
-  }
-})
-  // 🧠 WANDER WHEN IDLE
-  setInterval(() => {
-    if (!following && bot.entity) {
-      const x = bot.entity.position.x + (Math.random() * 6 - 3)
-      const y = bot.entity.position.y
-      const z = bot.entity.position.z + (Math.random() * 6 - 3)
-
-      bot.pathfinder.setGoal(new goals.GoalBlock(x, y, z))
-    }
-  }, 10000)
 
   // 🕺 ANTI AFK
   setInterval(() => {
     if (!bot.entity) return
-
     bot.setControlState('jump', true)
     setTimeout(() => bot.setControlState('jump', false), 300)
   }, 8000)
 
   // 🔁 RECONNECT
   bot.on('end', () => {
-    console.log('🔁 Reconnecting in 15s...')
+    console.log('🔁 Reconnecting...')
     setTimeout(createBot, 15000)
   })
 
-  bot.on('kicked', reason => {
-    console.log('❌ Kicked:', JSON.stringify(reason))
-  })
-
-  bot.on('error', err => {
-    console.log('❌ Error:', err.message)
-  })
+  bot.on('error', err => console.log('❌', err.message))
 }
 
 createBot()
